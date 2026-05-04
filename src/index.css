@@ -31,12 +31,13 @@ body {
   min-height: 100dvh;
   display: flex;
   justify-content: center;
+  width: 100%;
 }
 
 /* On desktop, let root fill width */
 @media (min-width: 1024px) {
   #root {
-    justify-content: stretch;
+    justify-content: flex-start;
   }
 }
 
@@ -198,14 +199,14 @@ input[type="checkbox"]:checked::after {
 
 .travel-bg-element {
   position: absolute;
-  opacity: 0.04;
+  opacity: 0.08;
   font-size: 2rem;
   will-change: transform;
 }
 
 @media (min-width: 1024px) {
   .travel-bg-element {
-    opacity: 0.06;
+    opacity: 0.12;
     font-size: 2.5rem;
   }
 }
@@ -222,18 +223,18 @@ input[type="checkbox"]:checked::after {
 
 .cloud-layer-1 {
   animation: parallaxCloud 45s linear infinite;
-  opacity: 0.03;
+  opacity: 0.06;
 }
 
 .cloud-layer-2 {
   animation: parallaxCloud 60s linear infinite reverse;
-  opacity: 0.02;
+  opacity: 0.04;
   top: 40%;
 }
 
 @media (min-width: 1024px) {
-  .cloud-layer-1 { opacity: 0.05; }
-  .cloud-layer-2 { opacity: 0.03; }
+  .cloud-layer-1 { opacity: 0.10; }
+  .cloud-layer-2 { opacity: 0.07; }
 }
 
 /* ===== WORLD MAP DOT PATTERN (desktop) ===== */
@@ -243,7 +244,7 @@ input[type="checkbox"]:checked::after {
   pointer-events: none;
   z-index: 0;
   opacity: 0;
-  background-image: radial-gradient(circle, rgba(142, 173, 193, 0.15) 1px, transparent 1px);
+  background-image: radial-gradient(circle, rgba(142, 173, 193, 0.25) 1px, transparent 1px);
   background-size: 24px 24px;
   transition: opacity 0.5s ease;
 }
@@ -311,22 +312,25 @@ input[type="checkbox"]:checked::after {
   51%, 100% { opacity: 0; }
 }
 
-/* ===== GRADIENT MESH (desktop) ===== */
+/* ===== GRADIENT MESH ===== */
 .gradient-mesh {
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0;
+  opacity: 1;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(255, 107, 53, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(0, 180, 216, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 80%, rgba(6, 214, 160, 0.03) 0%, transparent 50%);
 }
 
 @media (min-width: 1024px) {
   .gradient-mesh {
-    opacity: 1;
     background:
-      radial-gradient(ellipse at 20% 50%, rgba(255, 107, 53, 0.04) 0%, transparent 50%),
-      radial-gradient(ellipse at 80% 20%, rgba(0, 180, 216, 0.04) 0%, transparent 50%),
-      radial-gradient(ellipse at 60% 80%, rgba(6, 214, 160, 0.03) 0%, transparent 50%);
+      radial-gradient(ellipse at 20% 50%, rgba(255, 107, 53, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(0, 180, 216, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 60% 80%, rgba(6, 214, 160, 0.06) 0%, transparent 50%);
   }
 }
 
@@ -388,12 +392,18 @@ input[type="checkbox"]:checked::after {
   }
 }
 
+/* ===== AUTH PAGES FULL WIDTH ===== */
+.auth-split {
+  width: 100vw;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
 /* ===== SPLIT-SCREEN AUTH (desktop) ===== */
 @media (min-width: 1024px) {
   .auth-split {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    min-height: 100vh;
   }
   .auth-visual {
     display: flex !important;
@@ -405,6 +415,7 @@ input[type="checkbox"]:checked::after {
     display: flex;
     align-items: center;
     justify-content: center;
+    background: #0D1B2A;
   }
 }
 

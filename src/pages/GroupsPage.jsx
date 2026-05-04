@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Users, MapPin, Calendar, Search } from 'lucide-react'
+import { Plus, Users, MapPin, Calendar, Search, MessageCircle, ExternalLink, Check } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import GradientHeader from '../components/layout/GradientHeader'
 import SearchBar from '../components/ui/SearchBar'
@@ -19,6 +19,33 @@ function getStoredGroups() {
   } catch { return [] }
 }
 
+// Build WhatsApp invitation message
+function buildWhatsAppMessage(groupName, destination, startDate, endDate) {
+  let msg = `🧳 *TripMate Group Invitation*\n\n`
+  msg += `Hey! You've been invited to join the trip group *"${groupName}"* on TripMate!\n\n`
+  if (destination) msg += `📍 *Destination:* ${destination}\n`
+  if (startDate) msg += `📅 *Start:* ${startDate}\n`
+  if (endDate) msg += `📅 *End:* ${endDate}\n`
+  msg += `\n🌍 Let's plan this trip together! Download TripMate and join the group.\n`
+  msg += `\n_Sent via TripMate - Your Journey Starts Here_`
+  return encodeURIComponent(msg)
+}
+
+// Send WhatsApp invitation to a single number
+function sendWhatsAppInvite(mobile, message) {
+  // Clean the number: remove spaces, dashes, and add country code if missing
+  let cleanNumber = mobile.replace(/[\s\-\(\)]/g, '')
+  // If no country code, assume India (+91)
+  if (!cleanNumber.startsWith('+') && !cleanNumber.startsWith('91') && cleanNumber.length === 10) {
+    cleanNumber = '91' + cleanNumber
+  }
+  if (cleanNumber.startsWith('+')) {
+    cleanNumber = cleanNumber.slice(1)
+  }
+  const url = `https://wa.me/${cleanNumber}?text=${message}`
+  window.open(url, '_blank')
+}
+
 export default function GroupsPage() {
   const { user, profile } = useAuth()
   const navigate = useNavigate()
@@ -26,6 +53,8 @@ export default function GroupsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [groups, setGroups] = useState(getStoredGroups())
   const [searchQuery, setSearchQuery] = useState('')
+  const [showInviteSent, setShowInviteSent] = useState(false)
+  const [inviteCount, setInviteCount] = useState(0)
 
   // Create group form state
   const [groupName, setGroupName] = useState('')
@@ -83,6 +112,28 @@ export default function GroupsPage() {
     setGroups(updated)
     localStorage.setItem(DEMO_GROUPS_KEY, JSON.stringify(updated))
 
+    // Send WhatsApp invitations if group type is WhatsApp
+    if (groupType === 'whatsapp') {
+      const whatsappMessage = buildWhatsAppMessage(groupName.trim(), destination.trim(), startDate, endDate)
+      const membersWithMobile = members.filter(m => m.mobile)
+
+      if (membersWithMobile.length > 0) {
+        // Send invitations to all members with mobile numbers
+        let sentCount = 0
+        membersWithMobile.forEach((member, idx) => {
+          // Stagger opening tabs slightly to avoid browser blocking
+          setTimeout(() => {
+            sendWhatsAppInvite(member.mobile, whatsappMessage)
+            sentCount++
+          }, idx * 800)
+        })
+
+        setInviteCount(membersWithMobile.length)
+        setShowInviteSent(true)
+        setTimeout(() => setShowInviteSent(false), 4000)
+      }
+    }
+
     // Reset form
     setGroupName('')
     setDestination('')
@@ -105,6 +156,18 @@ export default function GroupsPage() {
         subtitle="Ek Se Bhale Do...."
         title="Stay United at One Place!"
       />
+
+      {/* WhatsApp invite sent toast */}
+      {showInviteSent && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[99999] animate-slide-up">
+          <div className="flex items-center gap-3 bg-green-600 text-white px-5 py-3 rounded-2xl shadow-xl shadow-green-600/30">
+            <MessageCircle size={20} />
+            <span className="text-sm font-medium">
+              WhatsApp invitations sent to {inviteCount} member{inviteCount > 1 ? 's' : ''}! 🎉
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <div className="px-5 desktop:px-0 -mt-5 relative z-20 mb-4 animate-slide-up">
@@ -155,8 +218,11 @@ export default function GroupsPage() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-light-text font-poppins font-semibold text-sm desktop:text-base truncate">
+                    <h3 className="text-light-text font-poppins font-semibold text-sm desktop:text-base truncate flex items-center gap-2">
                       {group.name}
+                      {group.groupType === 'whatsapp' && (
+                        <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-medium">WhatsApp</span>
+                      )}
                     </h3>
                     {group.destination && (
                       <div className="flex items-center gap-1 mt-1">
@@ -267,6 +333,16 @@ export default function GroupsPage() {
                 </button>
               ))}
             </div>
+
+            {/* WhatsApp hint */}
+            {groupType === 'whatsapp' && (
+              <div className="mt-2 p-2.5 bg-green-500/10 border border-green-500/20 rounded-xl animate-scale-in">
+                <p className="text-green-400 text-xs flex items-center gap-1.5">
+                  <MessageCircle size={12} />
+                  WhatsApp invitations will be sent to members with phone numbers when you create the group
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Members */}
@@ -283,7 +359,18 @@ export default function GroupsPage() {
                     <Avatar name={m.name} size="sm" />
                     <div className="flex-1 min-w-0">
                       <p className="text-light-text text-sm truncate">{m.name}</p>
-                      <p className="text-muted-text text-xs truncate">{m.mobile || m.email}</p>
+                      <p className="text-muted-text text-xs truncate flex items-center gap-1">
+                        {m.mobile && (
+                          <>
+                            <span>📱 {m.mobile}</span>
+                            {groupType === 'whatsapp' && (
+                              <span className="text-green-400 text-[10px]">• invite ready</span>
+                            )}
+                          </>
+                        )}
+                        {!m.mobile && m.email && <span>✉️ {m.email}</span>}
+                        {!m.mobile && !m.email && <span className="text-muted-text/50">No contact</span>}
+                      </p>
                     </div>
                     <button
                       onClick={() => removeMember(m.id)}
@@ -305,7 +392,7 @@ export default function GroupsPage() {
               />
               <div className="grid grid-cols-2 gap-2">
                 <Input
-                  placeholder="Mobile"
+                  placeholder={groupType === 'whatsapp' ? 'Mobile * (for invite)' : 'Mobile'}
                   value={newMemberMobile}
                   onChange={(e) => setNewMemberMobile(e.target.value)}
                 />
@@ -316,6 +403,14 @@ export default function GroupsPage() {
                   onChange={(e) => setNewMemberEmail(e.target.value)}
                 />
               </div>
+
+              {/* WhatsApp number hint */}
+              {groupType === 'whatsapp' && (
+                <p className="text-muted-text text-[10px] px-1">
+                  💡 Add mobile with country code (e.g., +91 9876543210) for WhatsApp invitation
+                </p>
+              )}
+
               <Button onClick={addMember} variant="ghost" size="sm" fullWidth>
                 + Add Member
               </Button>
@@ -330,7 +425,14 @@ export default function GroupsPage() {
             className="mt-4"
             disabled={!groupName.trim()}
           >
-            Create Group
+            {groupType === 'whatsapp' ? (
+              <span className="flex items-center gap-2">
+                <MessageCircle size={18} />
+                Create & Send WhatsApp Invites
+              </span>
+            ) : (
+              'Create Group'
+            )}
           </Button>
         </div>
       </Modal>

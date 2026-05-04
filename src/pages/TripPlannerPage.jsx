@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, ChevronUp, MapPin, Calendar, IndianRupee, Check, Map } from 'lucide-react'
+import { ChevronDown, ChevronUp, MapPin, Calendar, IndianRupee, Check, Map, Search, Loader } from 'lucide-react'
 import { tripTemplates } from '../data/destinations'
 import { getDestinationImage } from '../lib/unsplash'
+import { searchLocations } from '../lib/nominatim'
+import { useDebounce } from '../hooks/useDebounce'
 import GradientHeader from '../components/layout/GradientHeader'
 import SearchBar from '../components/ui/SearchBar'
 import Card from '../components/ui/Card'
@@ -12,7 +14,7 @@ import Modal from '../components/ui/Modal'
 
 const DEMO_TRIPS_KEY = 'tripmate_trips'
 
-const activitiesOptions = ['Sightseeing', 'Adventure', 'Food Tour', 'Shopping', 'Culture']
+const activitiesOptions = ['Sightseeing', 'Adventure', 'Food Tour', 'Shopping', 'Culture', 'Trekking', 'Water Sports', 'Photography']
 
 export default function TripPlannerPage() {
   const navigate = useNavigate()
@@ -31,13 +33,62 @@ export default function TripPlannerPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
+  // Location search state
+  const [locationQuery, setLocationQuery] = useState('')
+  const [locationResults, setLocationResults] = useState([])
+  const [locationLoading, setLocationLoading] = useState(false)
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false)
+  const [selectedLocation, setSelectedLocation] = useState(null)
+  const locationRef = useRef(null)
+  const debouncedLocationQuery = useDebounce(locationQuery, 400)
+
+  // Search locations when query changes
+  useEffect(() => {
+    if (debouncedLocationQuery.length < 2) {
+      setLocationResults([])
+      setShowLocationDropdown(false)
+      return
+    }
+
+    const fetchLocations = async () => {
+      setLocationLoading(true)
+      const results = await searchLocations(debouncedLocationQuery, 6)
+      setLocationResults(results)
+      setShowLocationDropdown(results.length > 0)
+      setLocationLoading(false)
+    }
+
+    fetchLocations()
+  }, [debouncedLocationQuery])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (locationRef.current && !locationRef.current.contains(e.target)) {
+        setShowLocationDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const handleSelectLocation = (location) => {
+    setTripDestination(location.name)
+    setLocationQuery(location.name)
+    setSelectedLocation(location)
+    setShowLocationDropdown(false)
+    setLocationResults([])
+  }
+
   const displayTemplates = showAll ? tripTemplates : tripTemplates.slice(0, 4)
 
   const handleSelectTemplate = (template) => {
     setSelectedTemplate(template)
     setTripDestination(template.destination)
+    setLocationQuery(template.destination)
     setBudget(template.estimatedBudget.toString())
     setSelectedActivities(template.activities || [])
+    setSelectedLocation(null)
     setShowPlanForm(true)
   }
 
@@ -56,6 +107,13 @@ export default function TripPlannerPage() {
       id: `trip-${Date.now()}`,
       name: selectedTemplate?.name || tripDestination,
       destination: tripDestination,
+      location: selectedLocation ? {
+        lat: selectedLocation.lat,
+        lon: selectedLocation.lon,
+        displayName: selectedLocation.displayName,
+        country: selectedLocation.country,
+        state: selectedLocation.state,
+      } : null,
       startDate: fromDate,
       endDate: toDate,
       numPeople,
@@ -78,6 +136,7 @@ export default function TripPlannerPage() {
         setSaved(false)
         // Reset form
         setTripDestination('')
+        setLocationQuery('')
         setFromDate('')
         setToDate('')
         setNumPeople(1)
@@ -85,6 +144,7 @@ export default function TripPlannerPage() {
         setSelectedActivities([])
         setNotes('')
         setSelectedTemplate(null)
+        setSelectedLocation(null)
       }, 1500)
     }, 800)
   }
@@ -166,6 +226,9 @@ export default function TripPlannerPage() {
         <Button
           onClick={() => {
             setSelectedTemplate(null)
+            setTripDestination('')
+            setLocationQuery('')
+            setSelectedLocation(null)
             setShowPlanForm(true)
           }}
           variant="outline"
@@ -189,17 +252,84 @@ export default function TripPlannerPage() {
             </div>
             <h3 className="text-light-text font-poppins font-semibold text-lg">Trip Saved!</h3>
             <p className="text-muted-text text-sm mt-1">Your adventure is planned 🎉</p>
+            {selectedLocation && (
+              <p className="text-muted-text text-xs mt-2">
+                📍 {selectedLocation.displayName}
+              </p>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
-            <Input
-              label="Destination"
-              value={tripDestination}
-              onChange={(e) => setTripDestination(e.target.value)}
-              placeholder="Where are you going?"
-              icon={MapPin}
-              required
-            />
+            {/* Location Search with real autocomplete */}
+            <div ref={locationRef} className="relative">
+              <label className="text-sm font-medium text-muted-text font-inter block mb-1.5">
+                Destination <span className="text-danger">*</span>
+              </label>
+              <div className="relative">
+                <MapPin size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-text z-10" />
+                <input
+                  type="text"
+                  value={locationQuery}
+                  onChange={(e) => {
+                    setLocationQuery(e.target.value)
+                    setTripDestination(e.target.value)
+                    setSelectedLocation(null)
+                  }}
+                  placeholder="Search real locations (e.g., Goa, Manali, Bali...)"
+                  className="w-full pl-10 pr-10 py-3 bg-card-bg border border-white/10 rounded-xl text-light-text text-sm
+                            placeholder:text-muted-text/50 focus:outline-none focus:border-primary/50
+                            focus:ring-1 focus:ring-primary/20 transition-all"
+                />
+                {locationLoading && (
+                  <Loader size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-primary animate-spin" />
+                )}
+                {selectedLocation && !locationLoading && (
+                  <Check size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-accent" />
+                )}
+              </div>
+
+              {/* Selected location details */}
+              {selectedLocation && (
+                <div className="mt-1.5 p-2 bg-accent/5 border border-accent/10 rounded-lg animate-scale-in">
+                  <p className="text-accent text-xs font-medium flex items-center gap-1">
+                    <Check size={10} />
+                    Real location selected
+                  </p>
+                  <p className="text-muted-text text-[10px] mt-0.5 truncate">
+                    {selectedLocation.displayName}
+                  </p>
+                  {selectedLocation.country && (
+                    <p className="text-muted-text text-[10px]">
+                      🌍 {selectedLocation.country}{selectedLocation.state ? ` • ${selectedLocation.state}` : ''}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Location results dropdown */}
+              {showLocationDropdown && locationResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 glass-strong rounded-xl overflow-hidden shadow-xl shadow-black/30 animate-fade-in max-h-[240px] overflow-y-auto">
+                  {locationResults.map((loc, idx) => (
+                    <button
+                      key={loc.id || idx}
+                      onClick={() => handleSelectLocation(loc)}
+                      className="w-full px-3 py-2.5 flex items-start gap-2.5 hover:bg-white/5 transition-colors text-left border-b border-white/5 last:border-0"
+                    >
+                      <MapPin size={14} className="text-primary mt-0.5 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-light-text text-sm font-medium truncate">{loc.name}</p>
+                        <p className="text-muted-text text-[10px] truncate">{loc.displayName}</p>
+                        {loc.country && (
+                          <p className="text-muted-text text-[10px]">
+                            🌍 {loc.country}{loc.state ? ` • ${loc.state}` : ''}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <Input
